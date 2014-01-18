@@ -87,9 +87,18 @@ class StateMachine(StateMachineBase):
         """
         pass
 
+    def changed_state(self, from_, to):
+        """
+        This method is called after a state change is executed
+        """
+        pass
+
     def _new_state(self, state):
-        self.changing_state(self._current_state_object.name, state.name)
+        _from = self._current_state_object.name
+        to = state.name
+        self.changing_state(_from,to)
         self._current_state_object = state
+        self.changed_state(_from,to)
 
     def _state_objects(self):
         return list(self._states.values())
@@ -107,9 +116,32 @@ class StateMachine(StateMachineBase):
     def add_transition(self, event, from_, to, action=None, guard=None):
         transition = _Transition(event, [self._state_by_name(s) for s in _listize(from_)],
             self._state_by_name(to), action, guard)
+        
+        #validate transition on add
+        for f in transition.from_:
+            assert(f)
+            
         self._transitions.append(transition)
         setattr(self, event, transition.event_method().__get__(self, self.__class__))
+        
+    def can_transition(self, event_name):
+        try:
+            transitions = self._transitions_by_name(event_name)
+            transitions = self._ensure_from_validity(transitions)
+            this_transition = self._check_guards(transitions)
+        except GuardNotSatisfied:
+            return False
+        return True
 
+    def allowed_events(self):
+        transitions = self._transitions_by_state(self.current_state)
+        transitions = self._ensure_from_validity(transitions)
+        allowed_transitions = []
+        for transition in transitions:
+            if transition.check_guard(self):
+                allowed_transitions.append(transition)
+        return [t.event for t in allowed_transitions]
+    
     def _process_transitions(self, event_name, *args, **kwargs):
         transitions = self._transitions_by_name(event_name)
         transitions = self._ensure_from_validity(transitions)
@@ -127,6 +159,9 @@ class StateMachine(StateMachineBase):
 
     def _transitions_by_name(self, name):
         return list(filter(lambda transition: transition.event == name, self._transitions))
+
+    def _transitions_by_state(self, name):
+        return list(filter(lambda transition: 0 < len(filter(lambda f: f.name == name,transition.from_)), self._transitions))
 
     def _ensure_from_validity(self, transitions):
         valid_transitions = list(filter(
@@ -152,6 +187,8 @@ class StateMachine(StateMachineBase):
 class _Transition(object):
 
     def __init__(self, event, from_, to, action, guard):
+        assert(from_)
+        assert(to)
         self.event = event
         self.from_ = from_
         self.to = to
