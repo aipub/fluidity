@@ -37,21 +37,24 @@ StateMachineBase = MetaStateMachine('StateMachineBase', (object, ), {})
 class StateMachine(StateMachineBase):
 
     def __init__(self):
-        self._bring_definitions_to_object_level()
-        self._inject_into_parts()
-        self._validate_machine_definitions()
         if callable(self.initial_state):
             self.initial_state = self.initial_state()
-        self._current_state_object = self._state_by_name(self.initial_state)
-        self._current_state_object.run_enter(self)
-        self._create_state_getters()
-
+        self.set_initial_state(self.initial_state)
+        
     def __new__(cls, *args, **kwargs):
         obj = super(StateMachine, cls).__new__(cls)
         obj._states = {}
         obj._transitions = []
         return obj
 
+    def set_initial_state(self,state):
+        self._bring_definitions_to_object_level()
+        self._inject_into_parts()
+        self._validate_machine_definitions()
+        self._current_state_object = self._state_by_name(state)
+        self._current_state_object.run_enter(self)
+        self._create_state_getters()
+        
     def _bring_definitions_to_object_level(self):
         self._states.update(self.__class__._class_states)
         self._transitions.extend(self.__class__._class_transitions)
